@@ -1,0 +1,10 @@
+{
+  "description": "Create stunning UI/UX designs effortlessly with this web app, tailored for designers and developers seeking to enhance user experiences.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
