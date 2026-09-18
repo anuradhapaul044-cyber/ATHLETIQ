@@ -40,14 +40,14 @@ export function StatCard({ label, value, sub, icon, trend, accent }: StatCardPro
     <Card className={accent ? 'bg-[var(--color-brand)] border-[var(--color-brand)] text-white' : ''}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className={`text-xs font-medium uppercase tracking-wider ${accent ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`}>
+          <p className={`text-xs font-medium uppercase tracking-wider ${accent ? 'text-black/70' : 'text-[var(--color-text-muted)]'}`}>
             {label}
           </p>
-          <p className={`mt-1 text-2xl font-bold font-[var(--font-mono)] tabular-nums ${accent ? 'text-white' : 'text-[var(--color-text)]'}`}>
+          <p className={`mt-1 text-2xl font-bold font-[var(--font-mono)] tabular-nums ${accent ? 'text-black' : 'text-[var(--color-text)]'}`}>
             {value}
           </p>
           {sub && (
-            <p className={`mt-0.5 text-xs ${accent ? 'text-white/60' : 'text-[var(--color-text-muted)]'}`}>{sub}</p>
+            <p className={`mt-0.5 text-xs ${accent ? 'text-black/70' : 'text-[var(--color-text-muted)]'}`}>{sub}</p>
           )}
           {trend && (
             <p className={`mt-1 text-xs font-medium flex items-center gap-0.5 ${

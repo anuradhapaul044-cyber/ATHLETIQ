@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router';
 import { Wordmark } from '../../components/layout/Wordmark';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { API_BASE_URL } from '../../lib/api';
+import { saveAuthSession } from '../../lib/auth';
 
 const sports = ['Athletics', 'Football', 'Basketball', 'Cricket', 'Badminton', 'Swimming', 'Boxing', 'Wrestling', 'Kabaddi', 'Volleyball', 'Hockey', 'Tennis', 'Other'];
 
@@ -19,7 +21,7 @@ export default function Signup() {
   const validate1 = () => {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'Full name is required';
-    if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) e.email = 'Enter a valid email';
+    if (!form.email.trim()) e.email = 'Username is required';
     if (form.password.length < 8) e.password = 'Minimum 8 characters';
     if (form.password !== form.confirm) e.confirm = 'Passwords do not match';
     setErrors(e);
@@ -31,9 +33,44 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setLoading(false);
-    navigate('/student');
+    setErrors({});
+
+    try {
+      const username = form.email.trim();
+      const registerResponse = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password: form.password }),
+      });
+      const registerPayload = await registerResponse.json().catch(() => ({}));
+      if (!registerResponse.ok) {
+        throw new Error(registerPayload.detail || 'Account registration failed.');
+      }
+
+      const loginResponse = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ username, password: form.password }),
+      });
+      const loginPayload = await loginResponse.json().catch(() => ({}));
+      if (!loginResponse.ok) {
+        throw new Error(loginPayload.detail || 'Unable to sign in after registration.');
+      }
+
+      if (typeof loginPayload.access_token !== 'string' || typeof loginPayload.user?.username !== 'string') {
+        throw new Error('The sign-in response was invalid.');
+      }
+
+      saveAuthSession(loginPayload.access_token, {
+        username: loginPayload.user.username,
+        role: loginPayload.user.role,
+      });
+      navigate('/student');
+    } catch (err) {
+      setErrors({ form: err instanceof Error ? err.message : 'Could not create account.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -82,7 +119,7 @@ export default function Signup() {
               <p className="text-sm text-[var(--color-text-muted)] mb-6">Step 1 of 2 — Account details</p>
               <div className="space-y-4">
                 <Input label="Full name" placeholder="Arjun Sharma" value={form.name} onChange={set('name')} error={errors.name} />
-                <Input label="Email address" type="email" placeholder="arjun@example.com" value={form.email} onChange={set('email')} error={errors.email} />
+                <Input label="Username" type="text" placeholder="arjun.sharma" value={form.email} onChange={set('email')} error={errors.email} />
                 <Input label="Password" type="password" placeholder="Minimum 8 characters" value={form.password} onChange={set('password')} error={errors.password} />
                 <Input label="Confirm password" type="password" placeholder="Re-enter password" value={form.confirm} onChange={set('confirm')} error={errors.confirm} />
                 <Button fullWidth size="lg" onClick={handleNext}>Continue →</Button>
@@ -110,6 +147,11 @@ export default function Signup() {
                 </div>
                 <Input label="Date of birth" type="date" value={form.dob} onChange={set('dob')} />
                 <Input label="City / Location" placeholder="e.g. Mumbai, Maharashtra" value={form.location} onChange={set('location')} />
+                {errors.form && (
+                  <div className="flex items-center gap-2 p-3 bg-[var(--color-danger-light)] text-[var(--color-danger)] rounded-[var(--radius-sm)] text-sm">
+                    {errors.form}
+                  </div>
+                )}
                 <div className="flex gap-3 pt-2">
                   <Button variant="outline" onClick={() => setStep(1)} type="button">← Back</Button>
                   <Button type="submit" fullWidth loading={loading} size="lg">Create account</Button>

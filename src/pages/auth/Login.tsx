@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { Wordmark } from '../../components/layout/Wordmark';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { API_BASE_URL } from '../../lib/api';
+import { saveAuthSession, type UserRole } from '../../lib/auth';
 
-type Role = 'student' | 'coach' | 'admin';
+type Role = UserRole;
 
 const roleConfig: Record<Role, { label: string; dest: string; color: string }> = {
   student: { label: 'Student / Athlete', dest: '/student', color: 'var(--color-brand)' },
@@ -28,9 +30,34 @@ export default function Login() {
     setError('');
     if (!email || !password) { setError('Please fill in all fields.'); return; }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 900));
-    setLoading(false);
-    navigate(roleConfig[role].dest);
+    try {
+      const formData = new URLSearchParams({ username: email, password });
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || 'Unable to sign in.');
+      }
+
+      if (
+        typeof payload.access_token !== 'string'
+        || typeof payload.user?.username !== 'string'
+        || !Object.hasOwn(roleConfig, payload.user?.role)
+      ) {
+        throw new Error('The sign-in response was invalid. Please try again.');
+      }
+
+      const authenticatedUser = { username: payload.user.username, role: payload.user.role as Role };
+      saveAuthSession(payload.access_token, authenticatedUser);
+      navigate(roleConfig[authenticatedUser.role].dest);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgot = async (e: React.FormEvent) => {
@@ -85,9 +112,9 @@ export default function Login() {
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <Input
-                  label="Email address"
-                  type="email"
-                  placeholder="you@example.com"
+                  label="Username"
+                  type="text"
+                  placeholder="Enter your username"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   icon={<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { Wordmark } from './Wordmark';
 import { Avatar } from '../ui/Avatar';
+import { clearAuthSession, getAuthenticatedUsername } from '../../lib/auth';
 
 const navItems = [
   { to: '/student', label: 'Dashboard', icon: <GridIcon />, end: true },
@@ -21,6 +22,7 @@ const bottomNav = [
 export default function StudentLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
+  const username = getAuthenticatedUsername();
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-elevated)]">
@@ -78,7 +80,7 @@ export default function StudentLayout() {
             </NavLink>
           ))}
           <button
-            onClick={() => navigate('/')}
+            onClick={() => { clearAuthSession(); navigate('/login'); }}
             className="flex items-center gap-3 px-2.5 py-2 rounded-[var(--radius-sm)] text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-muted)] w-full"
           >
             <span className="w-5 h-5 flex-shrink-0"><LogoutIcon /></span>
@@ -86,12 +88,12 @@ export default function StudentLayout() {
           </button>
         </div>
 
-        {!collapsed && (
+        {!collapsed && username && (
           <div className="px-3 pb-3">
             <div className="flex items-center gap-3 p-2.5 rounded-[var(--radius-md)] bg-[var(--color-muted)] cursor-pointer hover:bg-[var(--color-border)]">
-              <Avatar name="Arjun Sharma" size="sm" />
+              <Avatar name={username} size="sm" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold truncate text-[var(--color-text)]">Arjun Sharma</p>
+                <p className="text-xs font-semibold truncate text-[var(--color-text)]">{username}</p>
                 <p className="text-xs text-[var(--color-text-muted)]">Student · Athletics</p>
               </div>
             </div>

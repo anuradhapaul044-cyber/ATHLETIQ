@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router';
 import { Wordmark } from './Wordmark';
 import { Avatar } from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
+import { clearAuthSession, getAuthenticatedUsername } from '../../lib/auth';
 
 const navItems = [
   { to: '/admin', label: 'Dashboard', end: true, icon: <GridIcon /> },
@@ -18,6 +19,7 @@ const navItems = [
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
+  const username = getAuthenticatedUsername();
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-elevated)]">
@@ -61,18 +63,18 @@ export default function AdminLayout() {
         </nav>
 
         <div className="border-t border-white/10 py-3 px-2 space-y-0.5">
-          <button onClick={() => navigate('/')} className="flex items-center gap-3 px-2.5 py-2 rounded-[var(--radius-sm)] text-sm font-medium text-white/60 hover:bg-white/8 hover:text-white/90 w-full">
+          <button onClick={() => { clearAuthSession(); navigate('/login'); }} className="flex items-center gap-3 px-2.5 py-2 rounded-[var(--radius-sm)] text-sm font-medium text-white/60 hover:bg-white/8 hover:text-white/90 w-full">
             <span className="w-5 h-5 flex-shrink-0"><LogoutIcon /></span>
             {!collapsed && <span>Sign Out</span>}
           </button>
         </div>
 
-        {!collapsed && (
+        {!collapsed && username && (
           <div className="px-3 pb-3">
             <div className="flex items-center gap-3 p-2.5 rounded-[var(--radius-md)] bg-white/8 cursor-pointer hover:bg-white/12">
-              <Avatar name="Admin User" size="sm" />
+              <Avatar name={username} size="sm" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold truncate text-white">Admin User</p>
+                <p className="text-xs font-semibold truncate text-white">{username}</p>
                 <p className="text-xs text-white/50">Platform Administrator</p>
               </div>
             </div>

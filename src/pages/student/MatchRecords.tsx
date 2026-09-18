@@ -1,18 +1,73 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
+import { addStudentMatchRecord, deleteStudentMatchRecord, getStudentMatchRecords, updateStudentMatchRecord, type MatchRecord } from '../../lib/matchRecords';
 
-const records = [
-  { event: 'State Athletics Championship', date: 'Aug 2025', sport: 'Athletics', competition: '100m Sprint', result: '3rd Place', time: '10.8s', verified: 'official' as const },
-  { event: 'District Sports Meet', date: 'Nov 2024', sport: 'Athletics', competition: '100m Sprint', result: '1st Place', time: '10.9s', verified: 'official' as const },
-  { event: 'School Inter-House Athletics', date: 'Jan 2025', sport: 'Athletics', competition: '200m Sprint', result: '1st Place', time: '22.1s', verified: 'self' as const },
-];
+const emptyDraft = {
+  event: '',
+  date: '',
+  sport: '',
+  competition: '',
+  result: '',
+  notes: '',
+};
 
 export default function MatchRecords() {
+  const [records, setRecords] = useState<MatchRecord[]>(() => getStudentMatchRecords());
   const [addOpen, setAddOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState(emptyDraft);
+  const [error, setError] = useState('');
+
+  const sortedRecords = useMemo(() => [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [records]);
+
+  const closeModal = () => {
+    setAddOpen(false);
+    setEditingId(null);
+    setDraft(emptyDraft);
+    setError('');
+  };
+
+  const persistList = () => {
+    setRecords(getStudentMatchRecords());
+  };
+
+  const handleSave = () => {
+    if (!draft.event.trim() || !draft.date || !draft.sport.trim() || !draft.competition.trim() || !draft.result.trim()) {
+      setError('Please complete the event, date, sport, discipline, and result fields.');
+      return;
+    }
+
+    if (editingId) {
+      updateStudentMatchRecord(editingId, { ...draft, verified: 'self' });
+    } else {
+      addStudentMatchRecord({ ...draft, verified: 'self', notes: draft.notes || '' });
+    }
+
+    persistList();
+    closeModal();
+  };
+
+  const handleDelete = (id: string) => {
+    deleteStudentMatchRecord(id);
+    persistList();
+  };
+
+  const startEdit = (record: MatchRecord) => {
+    setEditingId(record.id);
+    setDraft({
+      event: record.event,
+      date: record.date,
+      sport: record.sport,
+      competition: record.competition,
+      result: record.result,
+      notes: record.notes,
+    });
+    setAddOpen(true);
+  };
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -26,36 +81,46 @@ export default function MatchRecords() {
         </Button>
       </div>
 
-      <div className="space-y-3">
-        {records.map((r, i) => (
-          <Card key={i} hoverable>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-bold text-[var(--color-text)]">{r.event}</h3>
-                  <Badge variant={r.verified === 'official' ? 'official' : 'self'} className="text-[10px]">
-                    {r.verified === 'official' ? 'Officially Verified' : 'Self-Reported'}
-                  </Badge>
+      {sortedRecords.length === 0 ? (
+        <Card>
+          <p className="text-sm text-[var(--color-text-secondary)]">No match records yet. Add your first result to keep your profile current.</p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {sortedRecords.map((r) => (
+            <Card key={r.id} hoverable>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-bold text-[var(--color-text)]">{r.event}</h3>
+                    <Badge variant={r.verified === 'official' ? 'official' : 'self'} className="text-[10px]">
+                      {r.verified === 'official' ? 'Officially Verified' : 'Self-Reported'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[var(--color-text-muted)] mb-2">{r.sport} · {r.competition} · {r.date}</p>
+                  {r.notes && <p className="text-xs text-[var(--color-text-secondary)]">{r.notes}</p>}
                 </div>
-                <p className="text-xs text-[var(--color-text-muted)] mb-2">{r.sport} · {r.competition} · {r.date}</p>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-black text-[var(--color-brand)]">{r.result}</p>
+                </div>
               </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-sm font-black text-[var(--color-brand)]">{r.result}</p>
-                {r.time && <p className="text-xs font-mono text-[var(--color-text-muted)]">{r.time}</p>}
+              <div className="flex justify-end gap-2 mt-3">
+                <button onClick={() => startEdit(r)} className="text-xs text-[var(--color-brand)] hover:underline">Edit</button>
+                <button onClick={() => handleDelete(r.id)} className="text-xs text-[var(--color-danger)] hover:underline">Delete</button>
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Modal
         open={addOpen}
-        onClose={() => setAddOpen(false)}
-        title="Add Match Record"
+        onClose={closeModal}
+        title={editingId ? 'Edit Match Record' : 'Add Match Record'}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={() => setAddOpen(false)}>Save Record</Button>
+            <Button variant="ghost" onClick={closeModal}>Cancel</Button>
+            <Button onClick={handleSave}>{editingId ? 'Update Record' : 'Save Record'}</Button>
           </>
         }
       >
@@ -63,13 +128,15 @@ export default function MatchRecords() {
           <div className="p-3 bg-[var(--color-warning-light)] rounded-[var(--radius-sm)]">
             <p className="text-xs text-[var(--color-warning)]">Self-reported records are labelled accordingly on your profile. To have records officially verified, contact a verified coach.</p>
           </div>
-          <Input label="Event / Competition name" placeholder="e.g. State Athletics Championship" />
+          {error && <p className="text-xs text-[var(--color-danger)]">{error}</p>}
+          <Input label="Event / Competition name" placeholder="e.g. State Athletics Championship" value={draft.event} onChange={e => setDraft(d => ({ ...d, event: e.target.value }))} />
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Date" type="date" />
-            <Input label="Sport" placeholder="e.g. Athletics" />
+            <Input label="Date" type="date" value={draft.date} onChange={e => setDraft(d => ({ ...d, date: e.target.value }))} />
+            <Input label="Sport" placeholder="e.g. Athletics" value={draft.sport} onChange={e => setDraft(d => ({ ...d, sport: e.target.value }))} />
           </div>
-          <Input label="Event / Discipline" placeholder="e.g. 100m Sprint" />
-          <Input label="Result / Achievement" placeholder="e.g. 1st Place, 10.8s" />
+          <Input label="Event / Discipline" placeholder="e.g. 100m Sprint" value={draft.competition} onChange={e => setDraft(d => ({ ...d, competition: e.target.value }))} />
+          <Input label="Result / Achievement" placeholder="e.g. 1st Place, 10.8s" value={draft.result} onChange={e => setDraft(d => ({ ...d, result: e.target.value }))} />
+          <Input label="Notes (optional)" placeholder="Optional details" value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} />
         </div>
       </Modal>
     </div>

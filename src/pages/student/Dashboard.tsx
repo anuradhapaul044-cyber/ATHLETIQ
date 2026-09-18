@@ -4,12 +4,8 @@ import { Card, StatCard } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
-
-const recentAssessments = [
-  { date: 'Sep 12, 2025', type: 'Push-up Assessment', reps: 42, score: 8.4, status: 'ai' },
-  { date: 'Aug 28, 2025', type: 'Push-up Assessment', reps: 38, score: 7.9, status: 'ai' },
-  { date: 'Aug 10, 2025', type: 'Push-up Assessment', reps: 35, score: 7.2, status: 'ai' },
-];
+import { getAuthenticatedUsername } from '../../lib/auth';
+import { getPushupAssessmentHistory } from '../../lib/assessments';
 
 const opportunities = [
   { name: 'SAI National Athletics Trials', deadline: 'Mar 15, 2025', category: 'Government Trial', match: 94 },
@@ -23,15 +19,27 @@ const achievements = [
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
+  const username = getAuthenticatedUsername();
+  const history = getPushupAssessmentHistory();
+  const latestAssessment = history[0];
+  const recentAssessments = history.slice(0, 3).map(a => ({
+    date: new Date(a.saved_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
+    type: 'Push-up Assessment',
+    reps: a.completed_reps,
+    score: a.pose_detection_percentage,
+    status: 'ai',
+  }));
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <p className="text-sm text-[var(--color-text-muted)]">Wednesday, 17 September 2025</p>
-          <h1 className="text-2xl font-black text-[var(--color-text)] mt-0.5">Welcome back, Arjun 👋</h1>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-1">Your last assessment was 5 days ago. Time to push further.</p>
+          <p className="text-sm text-[var(--color-text-muted)]">Welcome back</p>
+          <h1 className="text-2xl font-black text-[var(--color-text)] mt-0.5">Welcome back{username ? `, ${username}` : ''} 👋</h1>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+            {latestAssessment ? `Latest saved assessment: ${latestAssessment.completed_reps} valid reps.` : 'Complete your first push-up assessment to begin tracking progress.'}
+          </p>
         </div>
         <Button
           onClick={() => navigate('/student/assessments')}
@@ -43,10 +51,19 @@ export default function StudentDashboard() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Best Push-ups" value="42" sub="AI-verified · Sep 12" accent />
-        <StatCard label="Form Score" value="8.4/10" sub="Latest assessment" trend={{ value: '+0.5 vs last', up: true }} />
-        <StatCard label="Assessments Done" value="8" sub="This month: 3" />
-        <StatCard label="Profile Strength" value="72%" sub="Add match records to improve" trend={{ value: '+5% this week', up: true }} />
+        <StatCard
+          label="Best Push-ups"
+          value={latestAssessment ? latestAssessment.completed_reps : '—'}
+          sub={latestAssessment ? `AI-verified · ${new Date(latestAssessment.saved_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}` : 'No saved assessment'}
+          accent
+        />
+        <StatCard
+          label="Pose Detection"
+          value={latestAssessment ? `${latestAssessment.pose_detection_percentage.toFixed(1)}%` : '—'}
+          sub={latestAssessment ? 'Latest assessment' : 'No assessment yet'}
+        />
+        <StatCard label="Assessments Done" value={history.length} sub={history.length ? 'Saved locally' : 'No saved assessments'} />
+        <StatCard label="Profile Status" value={latestAssessment ? 'Live' : '—'} sub={latestAssessment ? 'Latest assessment saved' : 'Add an assessment'} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">
@@ -126,14 +143,14 @@ export default function StudentDashboard() {
         <div className="space-y-5">
           {/* Profile card */}
           <Card className="text-center">
-            <Avatar name="Arjun Sharma" size="xl" className="mx-auto mb-3" />
-            <h3 className="font-bold text-[var(--color-text)]">Arjun Sharma</h3>
-            <p className="text-sm text-[var(--color-text-muted)] mb-1">Athletics · Mumbai</p>
+            {username && <Avatar name={username} size="xl" className="mx-auto mb-3" />}
+            {username && <h3 className="font-bold text-[var(--color-text)]">{username}</h3>}
+            <p className="text-sm text-[var(--color-text-muted)] mb-1">Athletics · Location not set</p>
             <Badge variant="ai" dot className="mb-4">Profile Active</Badge>
             <div className="w-full bg-[var(--color-border)] rounded-full h-1.5 mb-1">
-              <div className="bg-[var(--color-brand)] h-1.5 rounded-full" style={{ width: '72%' }} />
+              <div className="bg-[var(--color-brand)] h-1.5 rounded-full" style={{ width: latestAssessment ? '100%' : '0%' }} />
             </div>
-            <p className="text-xs text-[var(--color-text-muted)]">72% profile strength</p>
+            <p className="text-xs text-[var(--color-text-muted)]">{latestAssessment ? 'Latest assessment saved' : 'No assessment yet'}</p>
             <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => navigate('/student/profile')}>
               View Profile
             </Button>

@@ -1,0 +1,1 @@
+"""ATHLETIQ backend application package."""

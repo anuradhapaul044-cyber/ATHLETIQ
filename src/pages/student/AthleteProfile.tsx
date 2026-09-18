@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
+import { getAuthenticatedUsername } from '../../lib/auth';
+import { getLatestPushupAssessment, type SavedPushupAssessment } from '../../lib/assessments';
 
 const tabs = ['Overview', 'Assessments', 'Match Records', 'Achievements', 'Coach Evidence'];
 
@@ -30,9 +32,21 @@ const coachEvidence = [
   },
 ];
 
+const formatAngle = (value: number | null) => value === null ? '—' : `${value.toFixed(1)}°`;
+const formatPercentage = (value: number) => `${value.toFixed(1)}%`;
+
 export default function AthleteProfile() {
   const [activeTab, setActiveTab] = useState('Overview');
   const [viewMode, setViewMode] = useState<'own' | 'scout'>('own');
+  const [latestAssessment, setLatestAssessment] = useState<SavedPushupAssessment | null>(null);
+  const username = getAuthenticatedUsername();
+
+  useEffect(() => {
+    const syncAssessment = () => setLatestAssessment(getLatestPushupAssessment());
+    syncAssessment();
+    window.addEventListener('storage', syncAssessment);
+    return () => window.removeEventListener('storage', syncAssessment);
+  }, []);
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -47,10 +61,10 @@ export default function AthleteProfile() {
       {/* Profile header */}
       <Card className="mb-5">
         <div className="flex flex-col md:flex-row gap-5 items-start">
-          <Avatar name="Arjun Sharma" size="xl" />
+          {username && <Avatar name={username} size="xl" />}
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-2xl font-black text-[var(--color-text)]">Arjun Sharma</h1>
+              {username && <h1 className="text-2xl font-black text-[var(--color-text)]">{username}</h1>}
               <Badge variant="ai" dot>Profile Active</Badge>
             </div>
             <div className="flex flex-wrap gap-3 text-sm text-[var(--color-text-muted)] mb-4">
@@ -58,7 +72,7 @@ export default function AthleteProfile() {
               <span>·</span>
               <span>17 years</span>
               <span>·</span>
-              <span>Mumbai, Maharashtra</span>
+              <span>Location not set</span>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant="success" dot>AI-Verified Results</Badge>
@@ -149,30 +163,65 @@ export default function AthleteProfile() {
 
       {activeTab === 'Assessments' && (
         <div className="space-y-3">
-          {[
-            { date: 'Sep 12, 2025', reps: 42, score: 8.4, duration: '4m 12s' },
-            { date: 'Aug 28, 2025', reps: 38, score: 7.9, duration: '3m 55s' },
-            { date: 'Aug 10, 2025', reps: 35, score: 7.2, duration: '3m 30s' },
-          ].map((a, i) => (
-            <Card key={i} hoverable>
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-[var(--color-brand)]/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-black text-[var(--color-brand)]">{a.reps}</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-bold text-[var(--color-text)]">Push-up Assessment</p>
-                    <Badge variant="ai" className="text-[10px]">AI-Verified</Badge>
+          {!latestAssessment ? (
+            <Card>
+              <p className="text-sm text-[var(--color-text-secondary)]">No saved push-up assessment yet. Complete an assessment to see your latest AI-generated result here.</p>
+            </Card>
+          ) : (
+            <Card hoverable>
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-bold text-[var(--color-text)]">Latest Push-up Assessment</p>
+                    <Badge variant="ai" className="text-[10px]">AI-Generated</Badge>
                   </div>
-                  <p className="text-xs text-[var(--color-text-muted)]">{a.date} · Duration: {a.duration}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">Saved {new Date(latestAssessment.saved_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{a.reps} reps</p>
-                  <p className="text-xs text-[var(--color-text-muted)]">Form: {a.score}/10</p>
+                  <p className="text-lg font-black text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{latestAssessment.completed_reps} reps</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">Valid repetitions</p>
                 </div>
               </div>
+
+              <div className="grid md:grid-cols-2 gap-3 text-sm">
+                <div className="rounded bg-[var(--color-muted)] p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] mb-1">Valid Repetitions</p>
+                  <p className="font-bold text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{latestAssessment.completed_reps}</p>
+                </div>
+                <div className="rounded bg-[var(--color-muted)] p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] mb-1">Incomplete Repetitions</p>
+                  <p className="font-bold text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{latestAssessment.incomplete_reps}</p>
+                </div>
+                <div className="rounded bg-[var(--color-muted)] p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] mb-1">Average Elbow Angle</p>
+                  <p className="font-bold text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{formatAngle(latestAssessment.average_elbow_angle)}</p>
+                </div>
+                <div className="rounded bg-[var(--color-muted)] p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] mb-1">Minimum Elbow Angle</p>
+                  <p className="font-bold text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{formatAngle(latestAssessment.minimum_elbow_angle)}</p>
+                </div>
+                <div className="rounded bg-[var(--color-muted)] p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] mb-1">Maximum Elbow Angle</p>
+                  <p className="font-bold text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{formatAngle(latestAssessment.maximum_elbow_angle)}</p>
+                </div>
+                <div className="rounded bg-[var(--color-muted)] p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] mb-1">Pose Detection</p>
+                  <p className="font-bold text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{formatPercentage(latestAssessment.pose_detection_percentage)}</p>
+                </div>
+                <div className="rounded bg-[var(--color-muted)] p-3 md:col-span-2">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)] mb-1">Movement Consistency</p>
+                  <div className="flex flex-wrap gap-3 text-[var(--color-text)]">
+                    <span className="font-bold" style={{ fontFamily: 'var(--font-mono)' }}>Mean Range: {formatAngle(latestAssessment.movement_consistency.completed_rep_angle_range_mean_degrees)}</span>
+                    <span className="font-bold" style={{ fontFamily: 'var(--font-mono)' }}>Variation: {formatAngle(latestAssessment.movement_consistency.completed_rep_angle_range_std_dev_degrees)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-[var(--color-text-muted)] mt-4">
+                <strong>Source notice:</strong> This assessment was generated automatically by AI video analysis and is labelled as <strong>AI-Generated</strong> on your profile until coach-attested.
+              </p>
             </Card>
-          ))}
+          )}
         </div>
       )}
 

@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { authenticatedFetch } from '../../lib/api';
+import { savePushupAssessmentResult, type PushupAssessmentResponse } from '../../lib/assessments';
 
 type Stage = 'intro' | 'upload' | 'processing' | 'result';
+
+const MAX_VIDEO_SIZE_BYTES = 100 * 1024 * 1024;
+const SUPPORTED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
 
 const requirements = [
   'Record in a well-lit space so your full body is visible',
@@ -34,40 +39,96 @@ function ProgressDots({ stage }: { stage: Stage }) {
 export default function Assessment() {
   const navigate = useNavigate();
   const [stage, setStage] = useState<Stage>('intro');
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState('');
   const [processingStep, setProcessingStep] = useState(0);
+  const [assessment, setAssessment] = useState<PushupAssessmentResponse | null>(null);
+  const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = async () => {
-    setUploading(true);
-    for (let i = 0; i <= 100; i += 5) {
-      await new Promise(r => setTimeout(r, 60));
-      setUploadProgress(i);
+    setError('');
+    if (!selectedFile) {
+      setError('Select a video file before starting the assessment.');
+      return;
     }
-    setUploading(false);
+
+    const extension = `.${selectedFile.name.split('.').pop()?.toLowerCase() || ''}`;
+    if (!selectedFile.type.startsWith('video/') || !SUPPORTED_EXTENSIONS.includes(extension)) {
+      setError('Select an MP4, MOV, AVI, MKV, or WEBM video file.');
+      return;
+    }
+    if (selectedFile.size > MAX_VIDEO_SIZE_BYTES) {
+      setError('The video must be 100 MB or smaller.');
+      return;
+    }
+
     setStage('processing');
-    const steps = ['Extracting video frames...', 'Detecting body pose keypoints...', 'Counting valid repetitions...', 'Evaluating form consistency...', 'Generating performance report...'];
-    for (let i = 0; i < steps.length; i++) {
-      setProcessingStep(i);
-      await new Promise(r => setTimeout(r, 900));
+    setProcessingStep(0);
+    const progressTimer = window.setInterval(() => {
+      setProcessingStep(currentStep => Math.min(currentStep + 1, 4));
+    }, 1200);
+
+    try {
+      const formData = new FormData();
+      formData.append('video', selectedFile);
+      const response = await authenticatedFetch('/assessments/pushup', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || 'The video could not be analysed.');
+      }
+      setAssessment(payload as PushupAssessmentResponse);
+      setStage('result');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The video could not be analysed.');
+      setStage('upload');
+    } finally {
+      window.clearInterval(progressTimer);
     }
-    setStage('result');
+  };
+
+  const selectFile = (file: File) => {
+    setSelectedFile(file);
+    setFileName(file.name);
+    setError('');
+  };
+
+  const startNewAssessment = () => {
+    setSelectedFile(null);
+    setFileName('');
+    setAssessment(null);
+    setError('');
+    setProcessingStep(0);
+    setSaved(false);
+    setStage('intro');
+  };
+
+  const handleSaveToProfile = () => {
+    if (!assessment) return;
+    setSaved(true);
+    savePushupAssessmentResult(assessment);
+    setTimeout(() => navigate('/student/profile'), 1000);
   };
 
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file) { setFileName(file.name); }
+    if (file) { selectFile(file); }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setFileName(file.name);
+    if (file) selectFile(file);
   };
+
+  const formatAngle = (value: number | null) => value === null ? '—' : `${value.toFixed(1)}°`;
+  const formatPercentage = (value: number) => `${value.toFixed(1)}%`;
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -110,7 +171,7 @@ export default function Assessment() {
       {stage === 'upload' && (
         <div>
           <h1 className="text-3xl font-black text-[var(--color-text)] mb-2">Upload your video</h1>
-          <p className="text-[var(--color-text-secondary)] mb-6">Upload a video file (MP4, MOV, AVI) or record directly if your device supports it.</p>
+          <p className="text-[var(--color-text-secondary)] mb-6">Upload a video file (MP4, MOV, AVI, MKV, WEBM) or record directly if your device supports it.</p>
 
           <div
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -125,24 +186,22 @@ export default function Assessment() {
             </div>
             {fileName ? (
               <div>
-                <p className="text-sm font-semibold text-[var(--color-success)] mb-1">✓ {fileName}</p>
+                <p className="text-sm font-semibold text-black mb-1">✓ {fileName}</p>
                 <p className="text-xs text-[var(--color-text-muted)]">Ready to upload</p>
               </div>
             ) : (
               <div>
                 <p className="text-sm font-medium text-[var(--color-text)] mb-1">Drop video here or click to browse</p>
-                <p className="text-xs text-[var(--color-text-muted)]">MP4, MOV, AVI · Max 500MB</p>
+                <p className="text-xs text-[var(--color-text-muted)]">MP4, MOV, AVI, MKV, WEBM · Max 100MB</p>
               </div>
             )}
-            <input type="file" accept="video/*" className="hidden" id="video-input" onChange={handleFileInput} />
+            <input ref={fileInputRef} type="file" accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,.mp4,.mov,.avi,.mkv,.webm" className="hidden" id="video-input" onChange={handleFileInput} />
           </div>
 
           <div className="flex gap-3">
-            <label htmlFor="video-input">
-              <Button variant="outline" type="button" icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>} className="cursor-pointer">
-                Browse files
-              </Button>
-            </label>
+            <Button variant="outline" type="button" onClick={() => fileInputRef.current?.click()} icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>} className="cursor-pointer">
+              Browse files
+            </Button>
             <Button
               variant="secondary"
               icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /></svg>}
@@ -152,15 +211,9 @@ export default function Assessment() {
             </Button>
           </div>
 
-          {uploading && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)] mb-1.5">
-                <span>Uploading...</span>
-                <span style={{ fontFamily: 'var(--font-mono)' }}>{uploadProgress}%</span>
-              </div>
-              <div className="w-full bg-[var(--color-border)] rounded-full h-1.5">
-                <div className="bg-[var(--color-brand)] h-1.5 rounded-full transition-all duration-200" style={{ width: `${uploadProgress}%` }} />
-              </div>
+          {error && (
+            <div className="mt-4 p-3 bg-[var(--color-danger-light)] text-[var(--color-danger)] rounded-[var(--radius-sm)] text-sm">
+              {error}
             </div>
           )}
 
@@ -169,10 +222,9 @@ export default function Assessment() {
             <Button
               fullWidth
               onClick={handleUpload}
-              loading={uploading}
-              disabled={!fileName}
+              disabled={!selectedFile}
             >
-              {uploading ? 'Uploading...' : 'Upload & Analyse →'}
+              Upload & Analyse →
             </Button>
           </div>
         </div>
@@ -200,7 +252,7 @@ export default function Assessment() {
               'Generating performance report...',
             ].map((step, i) => (
               <div key={i} className={`flex items-center gap-2 text-sm transition-all ${
-                i < processingStep ? 'text-[var(--color-success)]' :
+                i < processingStep ? 'text-black' :
                 i === processingStep ? 'text-[var(--color-text)]' :
                 'text-[var(--color-text-muted)]'
               }`}>
@@ -218,22 +270,22 @@ export default function Assessment() {
         </div>
       )}
 
-      {stage === 'result' && (
+      {stage === 'result' && assessment && (
         <div>
           <Badge variant="ai" dot className="mb-4">AI-Generated Result</Badge>
           <h1 className="text-3xl font-black text-[var(--color-text)] mb-1">Assessment Complete</h1>
           <p className="text-[var(--color-text-secondary)] mb-6">Results have been automatically generated from your uploaded video.</p>
 
           <div className="grid grid-cols-2 gap-4 mb-6">
-            <Card className="text-center bg-[var(--color-brand)] border-[var(--color-brand)] text-white">
-              <p className="text-xs font-semibold uppercase tracking-wider text-white/60 mb-1">Valid Repetitions</p>
-              <p className="text-5xl font-black" style={{ fontFamily: 'var(--font-mono)' }}>42</p>
-              <p className="text-xs text-white/60 mt-1">AI-detected valid push-ups</p>
+            <Card className="text-center bg-[var(--color-brand)] border-[var(--color-brand)] text-black">
+              <p className="text-xs font-semibold uppercase tracking-wider text-black mb-1">Valid Repetitions</p>
+              <p className="text-5xl font-black text-black" style={{ fontFamily: 'var(--font-mono)' }}>{assessment.completed_reps}</p>
+              <p className="text-xs text-black mt-1">AI-detected valid push-ups</p>
             </Card>
             <Card className="text-center">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-1">Form Score</p>
-              <p className="text-5xl font-black text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>8.4</p>
-              <p className="text-xs text-[var(--color-text-muted)] mt-1">Out of 10</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-1">Incomplete Repetitions</p>
+              <p className="text-5xl font-black text-[var(--color-text)]" style={{ fontFamily: 'var(--font-mono)' }}>{assessment.incomplete_reps}</p>
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">Detected incomplete cycles</p>
             </Card>
           </div>
 
@@ -241,18 +293,17 @@ export default function Assessment() {
             <h3 className="text-sm font-bold text-[var(--color-text)] mb-3">Performance Breakdown</h3>
             <div className="space-y-3">
               {[
-                { label: 'Depth consistency', value: 88, grade: 'Good' },
-                { label: 'Body alignment', value: 92, grade: 'Excellent' },
-                { label: 'Tempo control', value: 74, grade: 'Fair' },
-                { label: 'Elbow tracking', value: 80, grade: 'Good' },
+                { label: 'Average elbow angle', value: formatAngle(assessment.average_elbow_angle) },
+                { label: 'Minimum elbow angle', value: formatAngle(assessment.minimum_elbow_angle) },
+                { label: 'Maximum elbow angle', value: formatAngle(assessment.maximum_elbow_angle) },
+                { label: 'Pose detection', value: formatPercentage(assessment.pose_detection_percentage) },
+                { label: 'Movement range average', value: formatAngle(assessment.movement_consistency.completed_rep_angle_range_mean_degrees) },
+                { label: 'Movement range variation', value: formatAngle(assessment.movement_consistency.completed_rep_angle_range_std_dev_degrees) },
               ].map(m => (
                 <div key={m.label}>
                   <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)] mb-1">
                     <span>{m.label}</span>
-                    <span className="font-medium">{m.grade}</span>
-                  </div>
-                  <div className="w-full bg-[var(--color-border)] rounded-full h-1.5">
-                    <div className="bg-[var(--color-brand)] h-1.5 rounded-full" style={{ width: `${m.value}%` }} />
+                    <span className="font-medium">{m.value}</span>
                   </div>
                 </div>
               ))}
@@ -261,10 +312,10 @@ export default function Assessment() {
 
           <Card className="mb-4 border-[var(--color-ai)]/30 bg-[var(--color-ai-light)]">
             <div className="flex items-start gap-2">
-              <span className="text-[var(--color-ai)] text-lg">◎</span>
+              <span className="text-[var(--color-ai)] text-lg">AI</span>
               <div>
-                <p className="text-xs font-bold text-[var(--color-ai)] uppercase tracking-wider mb-1">AI Movement Feedback</p>
-                <p className="text-sm text-[var(--color-text-secondary)]">Strong overall form with consistent depth. Tempo slowed slightly in the final 8 reps — consider conditioning your pace. Body alignment was excellent throughout.</p>
+                <p className="text-xs font-bold text-[var(--color-ai)] uppercase tracking-wider mb-1">AI Analysis Details</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">Pose was detected in {formatPercentage(assessment.pose_detection_percentage)} of processed frames. The analyzer used the {assessment.selected_elbow.side ?? 'available'} elbow for measurement.</p>
               </div>
             </div>
           </Card>
@@ -276,11 +327,11 @@ export default function Assessment() {
           </Card>
 
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStage('intro')}>New Assessment</Button>
+            <Button variant="outline" onClick={startNewAssessment}>New Assessment</Button>
             <Button
               fullWidth
               loading={saved}
-              onClick={() => { setSaved(true); setTimeout(() => navigate('/student/profile'), 1000); }}
+              onClick={handleSaveToProfile}
               icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>}
             >
               Save to Profile →

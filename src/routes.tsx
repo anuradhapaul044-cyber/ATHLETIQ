@@ -1,4 +1,6 @@
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
+import type { ComponentType } from 'react';
+import { getAuthSession, type UserRole } from './lib/auth';
 
 import Landing from './pages/Landing';
 import Login from './pages/auth/Login';
@@ -18,14 +20,19 @@ import CoachDashboard from './pages/coach/Dashboard';
 import Discover from './pages/coach/Discover';
 import SavedAthletes from './pages/coach/SavedAthletes';
 import Verification from './pages/coach/Verification';
+import CoachOpportunities from './pages/coach/CoachOpportunities';
+import CoachNotifications from './pages/coach/CoachNotifications';
+import CoachSettings from './pages/coach/CoachSettings';
 
 import AdminLayout from './components/layout/AdminLayout';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
+import AdminCoaches from './pages/admin/Coaches';
 import CoachVerification from './pages/admin/CoachVerification';
 import AdminOpportunities from './pages/admin/Opportunities';
 import Reports from './pages/admin/Reports';
 import Activity from './pages/admin/Activity';
+import AdminSettings from './pages/admin/Settings';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -36,13 +43,32 @@ function Placeholder({ title }: { title: string }) {
   );
 }
 
+function ProtectedLayout({ role, Layout }: { role: UserRole; Layout: ComponentType }) {
+  const session = getAuthSession();
+  if (!session) return <Navigate to="/login" replace />;
+  if (session.user.role !== role) return <Navigate to={`/${session.user.role}`} replace />;
+  return <Layout />;
+}
+
+function StudentRoute() {
+  return <ProtectedLayout role="student" Layout={StudentLayout} />;
+}
+
+function CoachRoute() {
+  return <ProtectedLayout role="coach" Layout={CoachLayout} />;
+}
+
+function AdminRoute() {
+  return <ProtectedLayout role="admin" Layout={AdminLayout} />;
+}
+
 export const router = createBrowserRouter([
   { path: '/', Component: Landing },
   { path: '/login', Component: Login },
   { path: '/signup', Component: Signup },
   {
     path: '/student',
-    Component: StudentLayout,
+    Component: StudentRoute,
     children: [
       { index: true, Component: StudentDashboard },
       { path: 'assessments', Component: Assessment },
@@ -57,29 +83,29 @@ export const router = createBrowserRouter([
   },
   {
     path: '/coach',
-    Component: CoachLayout,
+    Component: CoachRoute,
     children: [
       { index: true, Component: CoachDashboard },
       { path: 'discover', Component: Discover },
       { path: 'saved', Component: SavedAthletes },
       { path: 'verification', Component: Verification },
-      { path: 'opportunities', Component: () => <Placeholder title="Coach Opportunities" /> },
-      { path: 'notifications', Component: () => <Placeholder title="Notifications" /> },
-      { path: 'settings', Component: () => <Placeholder title="Settings" /> },
+      { path: 'opportunities', Component: CoachOpportunities },
+      { path: 'notifications', Component: CoachNotifications },
+      { path: 'settings', Component: CoachSettings },
     ],
   },
   {
     path: '/admin',
-    Component: AdminLayout,
+    Component: AdminRoute,
     children: [
       { index: true, Component: AdminDashboard },
       { path: 'users', Component: AdminUsers },
-      { path: 'coaches', Component: () => <Placeholder title="Coach Management" /> },
+      { path: 'coaches', Component: AdminCoaches },
       { path: 'verification', Component: CoachVerification },
       { path: 'opportunities', Component: AdminOpportunities },
       { path: 'reports', Component: Reports },
       { path: 'activity', Component: Activity },
-      { path: 'settings', Component: () => <Placeholder title="Admin Settings" /> },
+      { path: 'settings', Component: AdminSettings },
     ],
   },
 ]);
