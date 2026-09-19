@@ -11,7 +11,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(request: RegisterRequest) -> UserResponse:
-    """Create an account in the database-backed user store."""
+    """Create an account in PostgreSQL using the requested role."""
     selected_role = request.role or UserRole.STUDENT
     try:
         user = user_store.create_user(request.username, request.password, selected_role)

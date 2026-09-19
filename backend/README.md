@@ -1,6 +1,8 @@
 # ATHLETIQ backend
 
-Minimal FastAPI foundation for the ATHLETIQ API. It currently exposes only a health check; database access, authentication, frontend API calls, and business features are intentionally not implemented.
+FastAPI backend for the ATHLETIQ application, including PostgreSQL-backed
+users, JWT authentication, role-based authorization, assessments, coach
+workflows, opportunities, and administrative APIs.
 
 ## Setup
 
@@ -24,18 +26,24 @@ Install the backend dependencies into that environment:
 
 The health check is available at `http://127.0.0.1:8000/health`.
 
-## Temporary authentication
+## Authentication
 
-`POST /auth/register` creates a student account in memory. `POST /auth/login`
-returns a bearer JWT. The store resets whenever the server restarts.
+`POST /auth/register` creates a user in PostgreSQL. The request accepts
+`username`, `password`, and an optional `role` (`student`, `coach`, or
+`admin`). Omitting `role` preserves backwards compatibility and creates a
+student. The frontend signup flow intentionally exposes only Student and Coach
+registration; administrative accounts should be created through the existing
+administrative provisioning workflow rather than public signup.
 
-Local test accounts are available only until database-backed user management is
-implemented:
+`POST /auth/login` returns a bearer JWT containing the persisted username and
+role. Protected routes validate both the token and the current database role.
+The OpenAPI schema documents the role enum on registration and login responses.
+The public frontend intentionally exposes only Student and Coach signup;
+administrative accounts remain API-supported for controlled provisioning and
+tests.
 
-- `anuradha` / `stringst`
-- `demo.student` / `DemoStudent123!`
-- `demo.coach` / `DemoCoach123!`
-- `demo.admin` / `DemoAdmin123!`
+Do not rely on demo credentials or username conventions. Create test users via
+the registration endpoint or the focused backend tests.
 
 Set `ATHLETIQ_JWT_SECRET` before deployment. Without it, a local-only signing
 secret is generated at startup and existing tokens expire on restart.

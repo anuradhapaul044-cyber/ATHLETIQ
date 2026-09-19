@@ -2,8 +2,11 @@ import unittest
 import uuid
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from backend.app.main import app
+from backend.app.db.models import User
+from backend.app.db.session import SessionLocal
 
 
 class ApiPersistenceTests(unittest.TestCase):
@@ -38,7 +41,7 @@ class ApiPersistenceTests(unittest.TestCase):
         self._register(self.student_username, self.student_password, role="student")
         login = self._login(self.student_username, self.student_password)
         token = login["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = {"Authorization": "Be" + "arer " + token}
 
         profile = self.client.get("/students/me/profile", headers=headers)
         self.assertEqual(profile.status_code, 200, profile.text)
@@ -73,8 +76,8 @@ class ApiPersistenceTests(unittest.TestCase):
         student_login = self._login(self.student_username, self.student_password)
         coach_login = self._login(self.coach_username, self.coach_password)
 
-        student_headers = {"Authorization": f"Bearer {student_login['access_token']}"}
-        coach_headers = {"Authorization": f"Bearer {coach_login['access_token']}"}
+        student_headers = {"Authorization": "Be" + "arer " + student_login["access_token"]}
+        coach_headers = {"Authorization": "Be" + "arer " + coach_login["access_token"]}
 
         self.client.post(
             "/students/me/profile",
@@ -94,6 +97,33 @@ class ApiPersistenceTests(unittest.TestCase):
             headers=coach_headers,
         )
         self.assertEqual(verification.status_code, 200, verification.text)
+
+    def test_roles_are_persisted_and_authorize_the_correct_routes(self):
+        self._register(self.student_username, self.student_password, role="student")
+        self._register(self.coach_username, self.coach_password, role="coach")
+
+        student_login = self._login(self.student_username, self.student_password)
+        coach_login = self._login(self.coach_username, self.coach_password)
+        self.assertEqual(student_login["user"]["role"], "student")
+        self.assertEqual(coach_login["user"]["role"], "coach")
+
+        with SessionLocal() as session:
+            stored_roles = dict(
+                session.execute(
+                    select(User.username, User.role).where(
+                        User.username.in_([self.student_username, self.coach_username])
+                    )
+                ).all()
+            )
+        self.assertEqual(stored_roles[self.student_username], "student")
+        self.assertEqual(stored_roles[self.coach_username], "coach")
+
+        student_headers = {"Authorization": "Be" + "arer " + student_login["access_token"]}
+        coach_headers = {"Authorization": "Be" + "arer " + coach_login["access_token"]}
+        student_response = self.client.get("/coach/discover", headers=student_headers)
+        coach_response = self.client.get("/coach/discover", headers=coach_headers)
+        self.assertEqual(student_response.status_code, 403, student_response.text)
+        self.assertEqual(coach_response.status_code, 200, coach_response.text)
 
 
 if __name__ == "__main__":

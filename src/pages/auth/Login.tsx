@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { Wordmark } from '../../components/layout/Wordmark';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { API_BASE_URL } from '../../lib/api';
-import { saveAuthSession, type UserRole } from '../../lib/auth';
+import { getRoleHomePath, saveAuthSession, type UserRole } from '../../lib/auth';
 
 type Role = UserRole;
 
@@ -16,9 +16,6 @@ const roleConfig: Record<Role, { label: string; dest: string; color: string }> =
 
 export default function Login() {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const initialRole = (params.get('role') as Role) || 'student';
-  const [role, setRole] = useState<Role>(initialRole);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -52,7 +49,7 @@ export default function Login() {
 
       const authenticatedUser = { username: payload.user.username, role: payload.user.role as Role };
       saveAuthSession(payload.access_token, authenticatedUser);
-      navigate(roleConfig[authenticatedUser.role].dest);
+      navigate(getRoleHomePath(authenticatedUser.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in.');
     } finally {
@@ -95,21 +92,6 @@ export default function Login() {
               <h1 className="text-2xl font-black text-[var(--color-text)] mb-1">Welcome back</h1>
               <p className="text-sm text-[var(--color-text-muted)] mb-6">Sign in to your ATHLETIQ account</p>
 
-              {/* Role selector */}
-              <div className="flex bg-[var(--color-muted)] rounded-[var(--radius-sm)] p-1 mb-6">
-                {(Object.keys(roleConfig) as Role[]).map(r => (
-                  <button
-                    key={r}
-                    onClick={() => setRole(r)}
-                    className={`flex-1 text-xs font-semibold py-1.5 rounded transition-all ${
-                      role === r ? 'bg-white shadow-[var(--shadow-card)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    {roleConfig[r].label}
-                  </button>
-                ))}
-              </div>
-
               <form onSubmit={handleLogin} className="space-y-4">
                 <Input
                   label="Username"
@@ -137,31 +119,15 @@ export default function Login() {
                     Forgot password?
                   </button>
                 </div>
-                <Button type="submit" fullWidth loading={loading} size="lg">
-                  Sign in as {roleConfig[role].label}
-                </Button>
+                <Button type="submit" fullWidth loading={loading} size="lg">Sign in</Button>
               </form>
 
-              {role === 'student' && (
-                <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
-                  New to ATHLETIQ?{' '}
-                  <button onClick={() => navigate('/signup')} className="text-[var(--color-brand)] font-semibold hover:underline">
-                    Create an account
-                  </button>
-                </p>
-              )}
-
-              {/* Demo shortcuts */}
-              <div className="mt-6 p-3 bg-[var(--color-ai-light)] border border-[var(--color-ai)]/20 rounded-[var(--radius-md)]">
-                <p className="text-xs font-semibold text-[var(--color-ai)] mb-2">Demo — Quick Access</p>
-                <div className="flex flex-wrap gap-2">
-                  {(Object.keys(roleConfig) as Role[]).map(r => (
-                    <button key={r} onClick={() => navigate(roleConfig[r].dest)} className="text-xs px-2.5 py-1 bg-white border border-[var(--color-border)] rounded hover:border-[var(--color-ai)] hover:text-[var(--color-ai)] text-[var(--color-text-secondary)] font-medium transition-colors">
-                      → {roleConfig[r].label} Portal
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
+                New to ATHLETIQ?{' '}
+                <button onClick={() => navigate('/signup')} className="text-[var(--color-brand)] font-semibold hover:underline">
+                  Create an account
+                </button>
+              </p>
             </>
           ) : (
             <>

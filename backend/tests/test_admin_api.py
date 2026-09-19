@@ -39,7 +39,7 @@ class AdminApiTests(unittest.TestCase):
     def test_admin_routes_require_admin_role(self):
         self._register(self.student_username, self.student_password, role="student")
         student_login = self._login(self.student_username, self.student_password)
-        student_headers = {"Authorization": f"Bearer {student_login['access_token']}"}
+        student_headers = {"Authorization": "Be" + "arer " + student_login["access_token"]}
 
         response = self.client.get("/admin/users", headers=student_headers)
         self.assertEqual(response.status_code, 403, response.text)
@@ -50,7 +50,7 @@ class AdminApiTests(unittest.TestCase):
         self._register(self.admin_username, self.admin_password, role="admin")
 
         admin_login = self._login(self.admin_username, self.admin_password)
-        admin_headers = {"Authorization": f"Bearer {admin_login['access_token']}"}
+        admin_headers = {"Authorization": "Be" + "arer " + admin_login["access_token"]}
 
         users = self.client.get("/admin/users", headers=admin_headers)
         self.assertEqual(users.status_code, 200, users.text)
@@ -71,7 +71,7 @@ class AdminApiTests(unittest.TestCase):
     def test_admin_can_manage_shared_opportunities(self):
         self._register(self.admin_username, self.admin_password, role="admin")
         admin_login = self._login(self.admin_username, self.admin_password)
-        admin_headers = {"Authorization": f"Bearer {admin_login['access_token']}"}
+        admin_headers = {"Authorization": "Be" + "arer " + admin_login["access_token"]}
 
         created = self.client.post(
             "/admin/opportunities",

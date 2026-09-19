@@ -15,6 +15,17 @@ export type AuthSession = {
   user: AuthUser;
 };
 
+export function normalizeAuthUser(user?: Partial<AuthUser> | null): AuthUser | null {
+  if (!user || typeof user.username !== 'string' || !user.username.trim()) return null;
+  if (!isUserRole(user.role)) return null;
+
+  return { username: user.username.trim(), role: user.role };
+}
+
+export function getRoleHomePath(role: UserRole): string {
+  return `/${role}`;
+}
+
 type TokenPayload = {
   sub?: unknown;
   role?: unknown;
@@ -40,24 +51,31 @@ function isUserRole(value: unknown): value is UserRole {
 
 function sessionFromToken(accessToken: string): AuthSession | null {
   const payload = decodeToken(accessToken);
-  if (!payload || typeof payload.sub !== 'string' || !isUserRole(payload.role)) return null;
+  const user = normalizeAuthUser({ username: typeof payload?.sub === 'string' ? payload.sub : undefined, role: payload?.role });
+  if (!payload || !user) return null;
   if (typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()) return null;
 
-  return { accessToken, user: { username: payload.sub, role: payload.role } };
+  return { accessToken, user };
 }
 
 export function saveAuthSession(accessToken: string, user: AuthUser): void {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ accessToken, user }));
+  const normalizedUser = normalizeAuthUser(user);
+  if (!normalizedUser) {
+    clearAuthSession();
+    return;
+  }
+
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ accessToken, user: normalizedUser }));
   localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
 
   upsertAppUserRecord({
-    username: user.username,
-    role: user.role,
-    name: user.username,
-    email: `${user.username}@athletiq.local`,
+    username: normalizedUser.username,
+    role: normalizedUser.role,
+    name: normalizedUser.username,
+    email: `${normalizedUser.username}@athletiq.local`,
     sport: 'No data yet',
     location: 'No data yet',
-    status: user.role === 'coach' ? 'pending' : 'active',
+    status: normalizedUser.role === 'coach' ? 'pending' : 'active',
     joinedAt: new Date().toISOString(),
   });
 }

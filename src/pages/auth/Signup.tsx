@@ -4,15 +4,19 @@ import { Wordmark } from '../../components/layout/Wordmark';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { API_BASE_URL } from '../../lib/api';
-import { saveAuthSession } from '../../lib/auth';
+import { getRoleHomePath, saveAuthSession, type UserRole } from '../../lib/auth';
 
 const sports = ['Athletics', 'Football', 'Basketball', 'Cricket', 'Badminton', 'Swimming', 'Boxing', 'Wrestling', 'Kabaddi', 'Volleyball', 'Hockey', 'Tennis', 'Other'];
+const signupRoles: Array<{ value: UserRole; label: string; description: string }> = [
+  { value: 'student', label: 'Student / Athlete', description: 'Build your verified athlete profile.' },
+  { value: 'coach', label: 'Coach', description: 'Discover athletes and attest performance.' },
+];
 
 export default function Signup() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', sport: '', dob: '', location: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', sport: '', dob: '', location: '', role: 'student' as UserRole });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -40,7 +44,7 @@ export default function Signup() {
       const registerResponse = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password: form.password }),
+        body: JSON.stringify({ username, password: form.password, role: form.role }),
       });
       const registerPayload = await registerResponse.json().catch(() => ({}));
       if (!registerResponse.ok) {
@@ -57,7 +61,11 @@ export default function Signup() {
         throw new Error(loginPayload.detail || 'Unable to sign in after registration.');
       }
 
-      if (typeof loginPayload.access_token !== 'string' || typeof loginPayload.user?.username !== 'string') {
+      if (
+        typeof loginPayload.access_token !== 'string'
+        || typeof loginPayload.user?.username !== 'string'
+        || (loginPayload.user.role !== 'student' && loginPayload.user.role !== 'coach' && loginPayload.user.role !== 'admin')
+      ) {
         throw new Error('The sign-in response was invalid.');
       }
 
@@ -65,7 +73,7 @@ export default function Signup() {
         username: loginPayload.user.username,
         role: loginPayload.user.role,
       });
-      navigate('/student');
+      navigate(getRoleHomePath(loginPayload.user.role));
     } catch (err) {
       setErrors({ form: err instanceof Error ? err.message : 'Could not create account.' });
     } finally {
@@ -122,6 +130,26 @@ export default function Signup() {
                 <Input label="Username" type="text" placeholder="arjun.sharma" value={form.email} onChange={set('email')} error={errors.email} />
                 <Input label="Password" type="password" placeholder="Minimum 8 characters" value={form.password} onChange={set('password')} error={errors.password} />
                 <Input label="Confirm password" type="password" placeholder="Re-enter password" value={form.confirm} onChange={set('confirm')} error={errors.confirm} />
+                <div>
+                  <p className="block text-sm font-medium text-[var(--color-text)] mb-2">Account type</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {signupRoles.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setForm(current => ({ ...current, role: option.value }))}
+                        className={`text-left rounded-[var(--radius-sm)] border p-3 transition-colors ${
+                          form.role === option.value
+                            ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/5'
+                            : 'border-[var(--color-border)] hover:border-[var(--color-brand)]/50'
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold text-[var(--color-text)]">{option.label}</span>
+                        <span className="block text-xs text-[var(--color-text-muted)] mt-1">{option.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <Button fullWidth size="lg" onClick={handleNext}>Continue →</Button>
               </div>
               <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
