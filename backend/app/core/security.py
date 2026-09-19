@@ -1,18 +1,14 @@
-"""JWT and password helpers for the temporary authentication layer."""
+"""JWT and password helpers for the ATHLETIQ prototype."""
 
-import os
-import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
 from pwdlib import PasswordHash
 
+from backend.app.core.config import JWT_SECRET
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
-# Set ATHLETIQ_JWT_SECRET in deployment. A generated key is safe for local
-# development but intentionally invalidates tokens when the server restarts.
-JWT_SECRET = os.getenv("ATHLETIQ_JWT_SECRET") or secrets.token_urlsafe(32)
 password_hash = PasswordHash.recommended()
 
 

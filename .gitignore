@@ -21,3 +21,8 @@ logs/
 /.opencode-skills/
 
 ai/__pycache__/
+
+# Local Python/database files
+__pycache__/
+*.pyc
+athletiq.db

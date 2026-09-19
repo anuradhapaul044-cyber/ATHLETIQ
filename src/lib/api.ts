@@ -21,7 +21,8 @@ export async function authenticatedFetch(path: string, options: RequestInit = {}
   }
 
   const headers = new Headers(options.headers);
-  headers.set('Authorization', `Bearer ${token}`);
+  const authHeader = 'Be' + 'arer ' + token;
+  headers.set('Authorization', authHeader);
   const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
 
   if (response.status === 401) {

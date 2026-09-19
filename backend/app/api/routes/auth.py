@@ -11,12 +11,13 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(request: RegisterRequest) -> UserResponse:
-    """Create a student account in the temporary in-memory store."""
+    """Create an account in the database-backed user store."""
+    selected_role = request.role or UserRole.STUDENT
     try:
-        user = user_store.create_user(request.username, request.password, UserRole.STUDENT)
+        user = user_store.create_user(request.username, request.password, selected_role)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return UserResponse(username=user.username, role=user.role)
+    return UserResponse(username=user.username, role=UserRole(user.role))
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -31,6 +32,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
         )
 
     return TokenResponse(
-        access_token=create_access_token(user.username, user.role.value),
-        user=UserResponse(username=user.username, role=user.role),
+        access_token=create_access_token(user.username, user.role),
+        user=UserResponse(username=user.username, role=UserRole(user.role)),
     )

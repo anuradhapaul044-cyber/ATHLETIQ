@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -30,3 +32,17 @@ class PushupAssessmentResponse(BaseModel):
     pose_detected_frames: int
     selected_elbow: SelectedElbow
     pose_detection: PoseDetection
+
+
+class AssessmentHistoryItem(BaseModel):
+    id: str
+    assessment_type: str
+    status: str
+    completed_reps: int | None = None
+    incomplete_reps: int | None = None
+    minimum_elbow_angle: float | None = None
+    maximum_elbow_angle: float | None = None
+    average_elbow_angle: float | None = None
+    pose_detection_percentage: float | None = None
+    created_at: datetime
+    updated_at: datetime
